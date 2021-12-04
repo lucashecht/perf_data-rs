@@ -1,6 +1,8 @@
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader, Error, ErrorKind};
 
+mod perf_data;
+
 fn main() -> Result<(), Error> {
     let stdout = Command::new("qemu-system-x86_64")
         .args(["-m", "2048", "-M", "q35", "-cpu", "host,+vmx", "-enable-kvm", "-smp", "cores=4,threads=1,sockets=1"])
