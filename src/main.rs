@@ -15,12 +15,18 @@ fn main() -> Result<(), Error> {
         .ok_or_else(|| Error::new(ErrorKind::Other,"Could not capture standard output."))?;
 
     let reader = BufReader::new(stdout);
+    let mut lines = reader.lines().filter_map(|line| line.ok());
 
-    reader
-        .lines()
-        .filter_map(|line| line.ok())
-        .filter(|line| line.find("IP: ").is_some())
-        .for_each(|line| println!("{:#16x}", i64::from_str_radix(&line[6..], 16).unwrap()));
+    while lines.next().unwrap().find("Start profiling").is_none() {}
 
+    println!("Profiling started");
+    for line in lines {
+        if line.find("Stop profiling").is_some() {
+            println!("Profiling stopped");
+            break;
+        } else if line.find("IP: ").is_some() {
+            println!("{:#16x}", i64::from_str_radix(&line[6..], 16).unwrap());
+        }
+    }
     Ok(())
 }
