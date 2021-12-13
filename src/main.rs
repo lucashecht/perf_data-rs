@@ -6,25 +6,8 @@ use std::mem;
 mod perf_data;
 
 fn main() -> Result<(), Error> {
-    let mut proc = run_qemu();
 
-    let stdout = proc.stdout.take().ok_or_else(|| Error::new(ErrorKind::Other,"Could not capture standard output."))?;
-
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines().filter_map(|line| line.ok());
-
-    while lines.next().unwrap().find("Start profiling").is_none() {}
-
-    println!("Profiling started");
-    for line in lines {
-        if line.find("Stop profiling").is_some() {
-            println!("Profiling stopped");
-            break;
-        } else if line.find("IP: ").is_some() {
-            println!("{:#16x}", i64::from_str_radix(&line[6..], 16).unwrap());
-        }
-    }
-    proc.kill();
+    let samples = collect_samples();
 
     let header_size = mem::size_of::<perf_data::PerfHeader>();
 
@@ -65,5 +48,30 @@ fn run_qemu() -> Child {
         .stdout(Stdio::piped())
         .spawn()
         .expect("failed to execute QEMU")
+}
+
+fn collect_samples() -> Vec<i64> {
+    let mut proc = run_qemu();
+    let stdout = proc.stdout.take().unwrap();
+    let reader = BufReader::new(stdout);
+    let mut lines = reader.lines().filter_map(|line| line.ok());
+    let mut samples = Vec::new();
+
+    while lines.next().unwrap().find("Start profiling").is_none() {}
+
+    println!("Profiling started");
+    for line in lines {
+        if line.find("Stop profiling").is_some() {
+            println!("Profiling stopped");
+            break;
+        } else if line.find("IP: ").is_some() {
+            let sample = i64::from_str_radix(&line[6..], 16).unwrap();
+            println!("{:#16x}", sample);
+            samples.push(sample);
+        }
+    }
+    proc.kill();
+    
+    samples
 }
 
