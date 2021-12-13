@@ -1,5 +1,7 @@
 use std::process::{Command, Child, Stdio};
 use std::io::{BufRead, BufReader, Error, ErrorKind};
+use std::fs;
+use std::mem;
 
 mod perf_data;
 
@@ -24,6 +26,33 @@ fn main() -> Result<(), Error> {
     }
     proc.kill();
 
+    let header_size = mem::size_of::<perf_data::PerfHeader>();
+
+    let testdata = perf_data::PerfHeader {
+        magic: *b"PERFILE2",
+        size: header_size as u64,
+        attr_size: 10,
+        attrs: perf_data::PerfFileSection {
+            offset: 0,
+            size: 0,
+        },
+        data: perf_data::PerfFileSection {
+            offset: 0,
+            size: 0,
+        },
+        event_types: perf_data::PerfFileSection {
+            offset: 0,
+            size: 0,
+        },
+        flags: 0,
+        flags1: [0; 3],
+    };
+
+    let data_ptr = &testdata as *const perf_data::PerfHeader as *const _;
+
+    unsafe {
+        fs::write("perf.data", std::slice::from_raw_parts(data_ptr, header_size))?;
+    }
     Ok(())
 }
 
