@@ -1,41 +1,17 @@
 use std::process::{Command, Child, Stdio};
-use std::io::{BufRead, BufReader, Error, ErrorKind};
-use std::fs;
+use std::io::{BufRead, BufReader, Error};
+use std::fs::{File};
+use std::io::prelude::*;
 use std::mem;
 
 mod perf_data;
 
 fn main() -> Result<(), Error> {
+    //let samples = collect_samples();
 
-    let samples = collect_samples();
+    let samples: Vec<i64> = vec![0x1111, 0x1118, 0x111a, 0x111b];
+    create_perf_file(samples);
 
-    let header_size = mem::size_of::<perf_data::PerfHeader>();
-
-    let testdata = perf_data::PerfHeader {
-        magic: *b"PERFILE2",
-        size: header_size as u64,
-        attr_size: 10,
-        attrs: perf_data::PerfFileSection {
-            offset: 0,
-            size: 0,
-        },
-        data: perf_data::PerfFileSection {
-            offset: 0,
-            size: 0,
-        },
-        event_types: perf_data::PerfFileSection {
-            offset: 0,
-            size: 0,
-        },
-        flags: 0,
-        flags1: [0; 3],
-    };
-
-    let data_ptr = &testdata as *const perf_data::PerfHeader as *const _;
-
-    unsafe {
-        fs::write("perf.data", std::slice::from_raw_parts(data_ptr, header_size))?;
-    }
     Ok(())
 }
 
@@ -75,3 +51,56 @@ fn collect_samples() -> Vec<i64> {
     samples
 }
 
+fn create_perf_file(samples: Vec<i64>) {
+    let header_size = mem::size_of::<perf_data::PerfHeader>();
+
+    let sample_count = samples.len();
+
+    let attrs = vec![perf_data::PerfEventAttr::default(); sample_count];
+    let data_mmap = vec![perf_data::RecordMmap::default(); sample_count];
+    let data_sample = vec![perf_data::RecordSample::default(); sample_count];
+
+    //for i in 0..sample_count {
+    //    let sample = samples[i];
+    //}
+
+    let header = perf_data::PerfHeader {
+        magic: *b"PERFILE2",
+        size: header_size as u64,
+        attr_size: mem::size_of::<perf_data::PerfEventAttr>() as u64,
+        attrs: perf_data::PerfFileSection {
+            offset: header_size as u64,
+            size: mem::size_of_val(&*attrs) as u64,
+        },
+        data: perf_data::PerfFileSection {
+            offset: (header_size + mem::size_of_val(&*attrs)) as u64,
+            size: (mem::size_of_val(&data_mmap)+mem::size_of_val(&*data_sample)) as u64,
+        },
+        event_types: perf_data::PerfFileSection {
+            offset: 0,
+            size: 0,
+        },
+        flags: 0,
+        flags1: [0; 3],
+    };
+
+    let header_ptr = &header as *const perf_data::PerfHeader as *const _;
+    
+    let mut file = File::create("perf.data").expect("Cannot create perf.data");
+
+    unsafe fn write_vector<T>(buf: &mut File, vector: Vec<T>) {
+        for i in vector {
+            buf.write_all(std::slice::from_raw_parts(&i as *const T as *const _, mem::size_of::<T>())).expect("failed to write perf.data");
+        }
+    }
+
+    unsafe {
+        // write header, attribute section and data section to file
+        file.write_all(std::slice::from_raw_parts(header_ptr, header_size)).expect("failed to write perf.data");
+        write_vector(&mut file, attrs);
+        write_vector(&mut file, data_mmap);
+        write_vector(&mut file, data_sample);
+    }
+
+
+}
