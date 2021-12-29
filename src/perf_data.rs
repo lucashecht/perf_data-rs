@@ -3,6 +3,7 @@
 // and
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/perf_event.h
 
+use std::mem;
 use bitflags::bitflags;
 
 #[derive(Default, Clone)]
@@ -64,15 +65,6 @@ pub struct IdIndexEvent {
     pub entries: [IdIndexEntry],
 }
 
-#[derive(Default, Clone)]
-#[repr(C)]
-struct PerfSample {
-    pub ip: u64,
-    pub pid: u32,
-    pub tid: u32,
-    pub id: u64,
-}
-
 // Bits that can be set in attr.sample_type
 bitflags! {
     struct PerfEventSampleFormat: u64 {
@@ -103,9 +95,6 @@ bitflags! {
         const PERF_SAMPLE_WEIGHT_STRUCT		= 1 << 24;
     }
 }
-const PERF_SAMPLE_IP: u64 = 1 << 0;
-const PERF_SAMPLE_TID: u64 = 1 << 1;
-const PERF_SAMPLE_ID: u64 = 1 << 6;
 
 #[derive(Clone)]
 #[repr(C)]
@@ -138,9 +127,11 @@ impl Default for PerfEventAttr {
         PerfEventAttr {
             major_type: 1,  // PERF_TYPE_SOFTWARE
             size: 120,
-            config: 0,
-            sample_freq: 0,
-            sample_type: PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_ID,
+            config: 9,  // PERF_COUNT_SW_DUMMY
+            sample_freq: 4000,
+            sample_type: (PerfEventSampleFormat::PERF_SAMPLE_IP
+                | PerfEventSampleFormat::PERF_SAMPLE_TID
+                | PerfEventSampleFormat::PERF_SAMPLE_ID).bits(),
             read_format: 0,
             bitfield: 0b00000001010011000100000000000000000000 << 26,
             wakeup_events: 100,
@@ -162,28 +153,68 @@ impl Default for PerfEventAttr {
 }
 
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct RecordSample {
-    header: PerfEventHeader,
-    data: PerfSample,
+    pub header: PerfEventHeader,
+    pub ip: u64,
+    pub pid: u32,
+    pub tid: u32,
+    pub id: u64,
+}
+
+impl Default for RecordSample {
+    fn default() -> RecordSample {
+        RecordSample {
+            header: PerfEventHeader { 
+                event_type: 9,  // PERF_RECORD_SAMPLE
+                misc: 0,
+                size:  mem::size_of::<RecordSample>() as u16
+            },
+            ip: 0,
+            pid: 0,
+            tid: 0,
+            id: 0,
+        }
+    }
 }
 
 const PATH_MAX: usize = 32;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct RecordMmap {
-    header: PerfEventHeader,
-    pid: u32,
-    tid: u32,
-    addr: u64,
-    len: u64,
-    pgoff: u64,
-    filename: [char; PATH_MAX],
-    sample_id_pid: u32,
-    sample_id_tid: u32,
-    sample_id_id: u32,
+    pub header: PerfEventHeader,
+    pub pid: u32,
+    pub tid: u32,
+    pub addr: u64,
+    pub len: u64,
+    pub pgoff: u64,
+    pub filename: [u8; PATH_MAX],
+    pub sample_id_pid: u32,
+    pub sample_id_tid: u32,
+    pub sample_id_id: u32,
+}
+
+impl Default for RecordMmap {
+    fn default() -> RecordMmap {
+        RecordMmap {
+            header: PerfEventHeader { 
+                event_type: 1,  // PERF_RECORD_Mmap
+                misc: 0,
+                size:  mem::size_of::<RecordMmap>() as u16
+            },
+            pid: 0,
+            tid: 0,
+            addr: 0,
+            len: 0,
+            pgoff: 0,
+            filename: [b'A';  PATH_MAX],
+            sample_id_pid: 0,
+            sample_id_tid: 0,
+            sample_id_id: 0
+        }
+    }
 }
 
 #[derive(Default, Clone)]

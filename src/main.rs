@@ -7,9 +7,9 @@ use std::mem;
 mod perf_data;
 
 fn main() -> Result<(), Error> {
-    //let samples = collect_samples();
+    let samples: Vec<u64> = vec![0x1111, 0x1118, 0x111a, 0x111b];
 
-    let samples: Vec<i64> = vec![0x1111, 0x1118, 0x111a, 0x111b];
+    let samples = collect_samples();
     create_perf_file(samples);
 
     Ok(())
@@ -26,7 +26,7 @@ fn run_qemu() -> Child {
         .expect("failed to execute QEMU")
 }
 
-fn collect_samples() -> Vec<i64> {
+fn collect_samples() -> Vec<u64> {
     let mut proc = run_qemu();
     let stdout = proc.stdout.take().unwrap();
     let reader = BufReader::new(stdout);
@@ -41,7 +41,7 @@ fn collect_samples() -> Vec<i64> {
             println!("Profiling stopped");
             break;
         } else if line.find("IP: ").is_some() {
-            let sample = i64::from_str_radix(&line[6..], 16).unwrap();
+            let sample = u64::from_str_radix(&line[6..], 16).unwrap();
             println!("{:#16x}", sample);
             samples.push(sample);
         }
@@ -51,18 +51,17 @@ fn collect_samples() -> Vec<i64> {
     samples
 }
 
-fn create_perf_file(samples: Vec<i64>) {
+fn create_perf_file(samples: Vec<u64>) {
     let header_size = mem::size_of::<perf_data::PerfHeader>();
 
     let sample_count = samples.len();
 
-    let attrs = vec![perf_data::PerfEventAttr::default(); sample_count];
-    let data_mmap = vec![perf_data::RecordMmap::default(); sample_count];
-    let data_sample = vec![perf_data::RecordSample::default(); sample_count];
-
-    //for i in 0..sample_count {
-    //    let sample = samples[i];
-    //}
+    let attr = perf_data::PerfEventAttr::default();
+    let mut data_mmap = vec![perf_data::RecordMmap::default(); 1];
+    let data_sample: Vec<perf_data::RecordSample> = samples.iter()
+                             .enumerate()
+                             .map(|(i, ip)| perf_data::RecordSample { ip: *ip, id: i as u64, ..Default::default() })
+                             .collect();
 
     let header = perf_data::PerfHeader {
         magic: *b"PERFILE2",
@@ -70,10 +69,10 @@ fn create_perf_file(samples: Vec<i64>) {
         attr_size: mem::size_of::<perf_data::PerfEventAttr>() as u64,
         attrs: perf_data::PerfFileSection {
             offset: header_size as u64,
-            size: mem::size_of_val(&*attrs) as u64,
+            size: mem::size_of::<perf_data::PerfEventAttr>() as u64,
         },
         data: perf_data::PerfFileSection {
-            offset: (header_size + mem::size_of_val(&*attrs)) as u64,
+            offset: (header_size + mem::size_of::<perf_data::PerfEventAttr>()) as u64,
             size: (mem::size_of_val(&data_mmap)+mem::size_of_val(&*data_sample)) as u64,
         },
         event_types: perf_data::PerfFileSection {
@@ -97,7 +96,7 @@ fn create_perf_file(samples: Vec<i64>) {
     unsafe {
         // write header, attribute section and data section to file
         file.write_all(std::slice::from_raw_parts(header_ptr, header_size)).expect("failed to write perf.data");
-        write_vector(&mut file, attrs);
+        file.write_all(std::slice::from_raw_parts(&attr as *const perf_data::PerfEventAttr as *const _, mem::size_of::<perf_data::PerfEventAttr>())).expect("failed to write perf.data");
         write_vector(&mut file, data_mmap);
         write_vector(&mut file, data_sample);
     }
