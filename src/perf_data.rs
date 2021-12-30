@@ -133,7 +133,7 @@ impl Default for PerfEventAttr {
                 | PerfEventSampleFormat::PERF_SAMPLE_TID
                 | PerfEventSampleFormat::PERF_SAMPLE_ID).bits(),
             read_format: 0,
-            bitfield: 0b00000001010011000100000000000000000000 << 26,
+            bitfield: 0b0000000000000000100000011,
             wakeup_events: 100,
             bp_type: 0,
             bp_addr: 0,
@@ -172,14 +172,14 @@ impl Default for RecordSample {
                 size:  mem::size_of::<RecordSample>() as u16
             },
             ip: 0,
-            pid: 0,
+            pid: 1337,
             tid: 0,
             id: 0,
         }
     }
 }
 
-const PATH_MAX: usize = 32;
+pub const PATH_MAX: usize = 32;
 
 #[derive(Clone)]
 #[repr(C)]
@@ -200,17 +200,17 @@ impl Default for RecordMmap {
     fn default() -> RecordMmap {
         RecordMmap {
             header: PerfEventHeader { 
-                event_type: 1,  // PERF_RECORD_Mmap
+                event_type: 1,  // PERF_RECORD_MMAP
                 misc: 0,
                 size:  mem::size_of::<RecordMmap>() as u16
             },
-            pid: 0,
+            pid: 42,
             tid: 0,
-            addr: 0,
-            len: 0,
+            addr: 0x1000,
+            len: 10000,
             pgoff: 0,
             filename: [b'A';  PATH_MAX],
-            sample_id_pid: 0,
+            sample_id_pid: 1337,
             sample_id_tid: 0,
             sample_id_id: 0
         }

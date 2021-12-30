@@ -7,9 +7,9 @@ use std::mem;
 mod perf_data;
 
 fn main() -> Result<(), Error> {
-    let samples: Vec<u64> = vec![0x1111, 0x1118, 0x111a, 0x111b];
+    let samples: Vec<u64> = vec![0x1110, 0x1116, 0x111a, 0x111c];
 
-    let samples = collect_samples();
+    //let samples = collect_samples();
     create_perf_file(samples);
 
     Ok(())
@@ -54,10 +54,10 @@ fn collect_samples() -> Vec<u64> {
 fn create_perf_file(samples: Vec<u64>) {
     let header_size = mem::size_of::<perf_data::PerfHeader>();
 
-    let sample_count = samples.len();
-
     let attr = perf_data::PerfEventAttr::default();
-    let mut data_mmap = vec![perf_data::RecordMmap::default(); 1];
+    let mut data_mmap = vec![perf_data::RecordMmap::default(); 2];
+    let filename = "matrix_multiply";
+    data_mmap[0].filename.copy_from_slice(format!("{:\0<width$}", filename, width = perf_data::PATH_MAX).as_bytes()); 
     let data_sample: Vec<perf_data::RecordSample> = samples.iter()
                              .enumerate()
                              .map(|(i, ip)| perf_data::RecordSample { ip: *ip, id: i as u64, ..Default::default() })
@@ -73,7 +73,7 @@ fn create_perf_file(samples: Vec<u64>) {
         },
         data: perf_data::PerfFileSection {
             offset: (header_size + mem::size_of::<perf_data::PerfEventAttr>()) as u64,
-            size: (mem::size_of_val(&data_mmap)+mem::size_of_val(&*data_sample)) as u64,
+            size: (mem::size_of_val(&*data_mmap)+mem::size_of_val(&*data_sample)) as u64,
         },
         event_types: perf_data::PerfFileSection {
             offset: 0,
