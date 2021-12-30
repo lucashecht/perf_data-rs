@@ -21,7 +21,7 @@ pub struct PerfHeader {
     pub attr_size: u64,
     pub attrs: PerfFileSection,
     pub data: PerfFileSection,
-    pub event_types: PerfFileSection,
+    pub event_types: PerfFileSection,   // deprecated
     pub flags: u64,
     pub flags1: [u64; 3],
 }
@@ -133,7 +133,7 @@ impl Default for PerfEventAttr {
                 | PerfEventSampleFormat::PERF_SAMPLE_TID
                 | PerfEventSampleFormat::PERF_SAMPLE_ID).bits(),
             read_format: 0,
-            bitfield: 0b0000000000000000100000011,
+            bitfield: 0b0000001000000000100000011,
             wakeup_events: 100,
             bp_type: 0,
             bp_addr: 0,
@@ -173,7 +173,7 @@ impl Default for RecordSample {
             },
             ip: 0,
             pid: 1337,
-            tid: 0,
+            tid: 1337,
             id: 0,
         }
     }
@@ -207,18 +207,42 @@ impl Default for RecordMmap {
             pid: 42,
             tid: 0,
             addr: 0x1000,
-            len: 10000,
+            len: 0x500,
             pgoff: 0,
             filename: [b'A';  PATH_MAX],
             sample_id_pid: 1337,
-            sample_id_tid: 0,
+            sample_id_tid: 1337,
             sample_id_id: 0
         }
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 #[repr(C)]
-pub struct File {
-    header: PerfHeader,
+pub struct RecordComm {
+    pub header: PerfEventHeader,
+    pub pid: u32,
+    pub tid: u32,
+    pub comm: [u8; PATH_MAX],
+    pub sample_id_pid: u32,
+    pub sample_id_tid: u32,
+    pub sample_id_id: u32,
+}
+
+impl Default for RecordComm {
+    fn default() -> RecordComm {
+        RecordComm {
+            header: PerfEventHeader { 
+                event_type: 3,  // PERF_RECORD_COMM
+                misc: 0,
+                size:  mem::size_of::<RecordComm>() as u16
+            },
+            pid: 1337,
+            tid: 1337,
+            comm: [b'B';  PATH_MAX],
+            sample_id_pid: 1337,
+            sample_id_tid: 1337,
+            sample_id_id: 0
+        }
+    }
 }
