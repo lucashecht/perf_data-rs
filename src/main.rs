@@ -1,5 +1,4 @@
-use std::process::{Command, Child, Stdio};
-use std::io::{BufRead, BufReader, Error};
+use std::io::{stdin, Error};
 use std::fs::{File};
 use std::io::prelude::*;
 use std::mem;
@@ -9,30 +8,16 @@ mod perf_data;
 fn main() -> Result<(), Error> {
     let samples: Vec<u64> = vec![0x1110, 0x1116, 0x111a, 0x111c];
 
-    //let samples = collect_samples();
+    let samples = collect_samples();
     create_perf_file(samples);
 
     Ok(())
 }
 
-fn run_qemu() -> Child {
-     Command::new("qemu-system-x86_64")
-        .args(["-m", "2048", "-M", "q35", "-cpu", "host,+vmx", "-enable-kvm", "-smp", "cores=4,threads=1,sockets=1"])
-        .args(["-serial", "stdio", "-k", "en-us"])
-        .args(["-kernel", "/home/lhecht/Downloads/bender"])
-        .args(["-initrd", "/home/lhecht/git/supernova-core/build/share/hedron/hypervisor novga serial spinner,/home/lhecht/git/supernova-core/build/test/roottask/thesis-impl_roottasktest"])
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("failed to execute QEMU")
-}
-
 fn collect_samples() -> Vec<u64> {
-    let mut proc = run_qemu();
-    let stdout = proc.stdout.take().unwrap();
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines().filter_map(|line| line.ok());
+    let stdin = stdin();
+    let mut lines = stdin.lock().lines().filter_map(|line| line.ok());
     let mut samples = Vec::new();
-
     while lines.next().unwrap().find("Start profiling").is_none() {}
 
     println!("Profiling started");
@@ -46,7 +31,6 @@ fn collect_samples() -> Vec<u64> {
             samples.push(sample);
         }
     }
-    proc.kill();
     
     samples
 }
